@@ -1,151 +1,261 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- SEO: 核心标题 -->
-    <title>Aicy: Social Media Snake - Play The Addictive Free Online Snake Game</title>
-    
-    <!-- SEO: 网站描述 -->
-    <meta name="description" content="Play Aicy: Social Media Snake! A modern twist on the classic snake game. Grow your snake by collecting likes and shares, but watch out for the feed's walls! Play for free online.">
-    
-    <!-- SEO: 关键词 -->
-    <meta name="keywords" content="Aicy, snake game, social media snake, online game, free game, classic game, play aicy online">
-    
-    <!-- SEO: Canonical URL, 指向唯一权威的网址 -->
-    <link rel="canonical" href="https://aicy.qzz.io/">
-    
-    <!-- SEO: Open Graph / Facebook / Social Media Meta Tags -->
-    <meta property="og:title" content="Aicy: Social Media Snake - A Modern Twist on a Classic">
-    <meta property="og:description" content="Grow your snake by collecting likes and shares. How long can you last? Play Aicy for free!">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://aicy.qzz.io/">
-    <meta property="og:image" content="https://placehold.co/1200x630/34C759/FFFFFF?text=Aicy+Social+Media+Snake">
-    
-    <!-- SEO: Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Aicy: Social Media Snake - A Modern Twist on a Classic">
-    <meta name="twitter:description" content="Grow your snake by collecting likes and shares. How long can you last? Play Aicy for free!">
-    <meta name="twitter:image" content="https://placehold.co/1200x630/34C759/FFFFFF?text=Aicy+Social+Media+Snake">
+import React, { useState, useEffect, useCallback } from 'react';
+import { ThumbsUp, Copy, Bot, User, KeyRound, LoaderCircle } from 'lucide-react';
 
-    <!-- 引入 Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+// Helper to get initial state from localStorage
+const getInitialState = (key, defaultValue) => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed === null ? defaultValue : parsed;
+      } catch (e) {
+        return defaultValue;
+      }
+    }
+  }
+  return defaultValue;
+};
+
+// Main App Component
+const App = () => {
+  // --- STATE MANAGEMENT ---
+  // UPDATE: Changed default API key to the new Gemini key
+  const [apiKey, setApiKey] = useState(getInitialState('mjby_gemini_apiKey', 'AIzaSyC1KG5U-kWvjO1kM6sv88pUR4FXK19sZlA'));
+  const [opponentWords, setOpponentWords] = useState('');
+  const [intensity, setIntensity] = useState(5);
+  const [responses, setResponses] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showApiInput, setShowApiInput] = useState(false);
+
+  // --- LOCALSTORAGE PERSISTENCE ---
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // UPDATE: Using a new localStorage key for Gemini
+      localStorage.setItem('mjby_gemini_apiKey', JSON.stringify(apiKey));
+    }
+  }, [apiKey]);
+
+  // --- API CALL LOGIC (UPDATED FOR GEMINI API) ---
+  const handleArgue = useCallback(async () => {
+    if (!apiKey || apiKey.trim() === '') {
+      setError('请先设置一个有效的 Gemini API Key。');
+      setShowApiInput(true);
+      return;
+    }
     
-    <!-- 引入 Google Fonts (Inter, 苹果常用的字体风格) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    if (!opponentWords) {
+      setError('你总得告诉我对方说了什么吧？');
+      return;
+    }
 
-    <style>
-        /* 自定义基础样式 */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f9fafb; /* 苹果风格的浅灰色背景 */
-        }
-        /* 响应式的 iframe 容器，保持16:9的比例 */
-        .aspect-w-16 {
-            position: relative;
-            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
-            height: 0;
-            overflow: hidden;
-        }
-        .aspect-w-16 iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-    </style>
-</head>
-<body class="text-gray-800">
+    setIsLoading(true);
+    setError(null);
+    setResponses([]);
 
-    <!-- 主体内容容器 -->
-    <div class="container mx-auto max-w-5xl px-4 py-8 md:py-12">
+    // Construct the prompt for the AI model (still valid for Gemini)
+    const prompt = `
+      你是一个“吵架王”，一个精通各种言辞艺术的大师。你的任务是根据对方说的话，以1到10的强度进行回击。
+      - 强度1-3: 温和、讲道理，但略带讽刺。
+      - 强度4-6: 正常反驳，开始使用类比和反问，比较幽默。
+      - 强度7-9: 攻击性变强，言辞犀利，直击要害，但不说脏话。
+      - 强度10: 火力全开，极具攻击性和压迫感，让对方无言以对。
 
-        <!-- 头部区域 -->
-        <header class="text-center mb-8">
-            <!-- SEO: H1 标签，网站最重要的标题 -->
-            <h1 class="text-4xl md:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight">
-                Aicy: <span class="text-green-600">Social Media Snake</span>
-            </h1>
-            <!-- 一句话介绍 -->
-            <p class="mt-4 text-lg md:text-xl text-gray-500 max-w-3xl mx-auto">
-                A fresh take on the timeless classic. Navigate the feed, collect likes, and become the biggest snake online!
-            </p>
+      当前强度设置为: ${intensity}/10
+      对方说的话是: "${opponentWords}"
+
+      请严格按照这个强度，给我生成3个简短、有力、风格各异的回复。每个回复都以"• "开头，并用换行符分隔。
+    `;
+
+    // UPDATE: API endpoint and request structure for Gemini
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey.trim()}`;
+    
+    const requestBody = {
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }]
+    };
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Handle Gemini-specific errors
+        const errorMessage = data?.error?.message || `API请求失败，状态码: ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      // UPDATE: Parsing logic for Gemini's response structure
+      const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!content) {
+        throw new Error('AI返回了意想不到的数据格式。');
+      }
+      
+      const generatedResponses = content.split('• ').filter(r => r.trim() !== '').map(r => r.trim());
+      setResponses(generatedResponses);
+
+    } catch (e) {
+      console.error(e);
+      setError(e.message || '发生未知错误，请检查网络或API Key。');
+      if (e.message.includes('API key not valid')) {
+        setShowApiInput(true);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiKey, opponentWords, intensity]);
+
+  // --- UI HELPER FUNCTIONS ---
+  const copyToClipboard = (text) => {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+    } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+    }
+    document.body.removeChild(textarea);
+  };
+
+  // --- RENDER ---
+  return (
+    <div className="min-h-screen bg-[#F5F5F5] font-sans flex flex-col items-center p-4">
+      <div className="w-full max-w-md mx-auto">
+        
+        <header className="text-center py-4">
+          <h1 className="text-3xl font-bold text-[#191919] flex items-center justify-center">
+            <Bot className="w-8 h-8 mr-2 text-[#07C160]" />
+            妙架包赢
+          </h1>
+          <p className="text-gray-500 mt-1">输入对方的话，AI助你火力全开 (Gemini版)</p>
         </header>
 
-        <!-- 游戏 Iframe 区域 -->
-        <main>
-            <div class="w-full mx-auto rounded-xl shadow-2xl overflow-hidden border border-gray-200 bg-black">
-                <div class="aspect-w-16">
-                    <iframe 
-                        src="https://unblocked-games.s3.amazonaws.com/social-media-snake.html" 
-                        frameborder="0" 
-                        allowfullscreen
-                        title="Play Aicy: Social Media Snake Game">
-                    </iframe>
-                </div>
+        <main className="bg-white rounded-lg shadow-md p-6 mt-4">
+          
+          <div className="mb-6">
+            <label htmlFor="opponent-words" className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <User className="w-4 h-4 mr-2" />
+              对方说了什么？
+            </label>
+            <textarea
+              id="opponent-words"
+              value={opponentWords}
+              onChange={(e) => setOpponentWords(e.target.value)}
+              placeholder="在这里粘贴或输入对方的“典中典”"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#07C160] focus:border-[#07C160] transition duration-200 resize-none"
+              rows="4"
+            />
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="intensity" className="block text-sm font-medium text-gray-700 mb-2">
+              火力强度: <span className="font-bold text-[#07C160]">{intensity}</span> / 10
+            </label>
+            <input
+              id="intensity"
+              type="range"
+              min="1"
+              max="10"
+              value={intensity}
+              onChange={(e) => setIntensity(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#07C160]"
+            />
+          </div>
+
+          <button
+            onClick={handleArgue}
+            disabled={isLoading}
+            className="w-full bg-[#07C160] text-white font-bold py-3 px-4 rounded-lg hover:bg-[#06AD56] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#07C160] transition-all duration-300 ease-in-out flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <>
+                <LoaderCircle className="animate-spin w-5 h-5 mr-2" />
+                正在组织语言...
+              </>
+            ) : (
+              '开始吵架'
+            )}
+          </button>
+          
+          <div className="text-center mt-4">
+            <button onClick={() => setShowApiInput(!showApiInput)} className="text-xs text-gray-500 hover:text-gray-700">
+              {showApiInput ? '隐藏' : '设置'} API Key
+            </button>
+          </div>
+          
+          {showApiInput && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+               <label htmlFor="api-key" className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  {/* UPDATE: Changed label to Gemini */}
+                  Google Gemini API Key
+                </label>
+              <input
+                id="api-key"
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#07C160]"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                {/* UPDATE: Changed link to Google AI Studio */}
+                从 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a> 获取你的免费API Key。
+              </p>
             </div>
+          )}
+
         </main>
 
-        <!-- 游戏介绍内容区域 -->
-        <section class="mt-12 md:mt-16">
-            <div class="space-y-10">
-                <!-- SEO: H2 标签 -->
-                <div>
-                    <h2 class="text-2xl md:text-3xl font-bold text-gray-900 border-l-4 border-green-600 pl-4">About The Game</h2>
-                    <p class="mt-4 text-gray-600 leading-relaxed">
-                        Say goodbye to boring apples! In <strong>Aicy: Social Media Snake</strong>, you'll relive the addictive fun of the classic snake game with a modern, viral twist. You are a snake navigating a busy social media feed. Instead of fruit, you'll consume 'likes', 'shares', and 'comments' to grow longer and climb the leaderboard. It's a simple concept with surprisingly deep strategy and endless fun.
-                    </p>
-                </div>
+        {error && (
+          <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+            <strong className="font-bold">哎呀! </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
 
-                <!-- SEO: H2 标签 -->
-                <div>
-                    <h2 class="text-2xl md:text-3xl font-bold text-gray-900 border-l-4 border-green-600 pl-4">How to Play</h2>
-                    <p class="mt-4 text-gray-600 leading-relaxed">
-                        The goal is simple: become the longest snake in the feed without crashing. The controls are intuitive and designed for quick, responsive action.
-                    </p>
-                    <ul class="mt-4 list-disc list-inside space-y-2 text-gray-600">
-                        <li><strong>Control Your Snake:</strong> Use the Arrow Keys (Up, Down, Left, Right) to direct your snake.</li>
-                        <li><strong>Grow Longer:</strong> Navigate towards the social media icons (likes, comments) to 'eat' them and increase your length.</li>
-                        <li><strong>Avoid Crashing:</strong> Do not run into the walls of the game area or your own tail! One wrong move and it's game over.</li>
-                        <li><strong>Aim for a High Score:</strong> The longer you get, the higher your score. Challenge yourself and your friends!</li>
-                    </ul>
-                </div>
-
-                <!-- SEO: H2 标签 -->
-                <div>
-                    <h2 class="text-2xl md:text-3xl font-bold text-gray-900 border-l-4 border-green-600 pl-4">Key Features</h2>
-                     <ul class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <li class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h3 class="font-semibold text-lg text-gray-800">Classic Gameplay, Modern Theme</h3>
-                            <p class="text-gray-600 mt-1">The addictive fun of snake you know and love, reimagined for the social media age.</p>
-                        </li>
-                         <li class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h3 class="font-semibold text-lg text-gray-800">Simple & Addictive</h3>
-                            <p class="text-gray-600 mt-1">Easy to learn but difficult to master. Perfect for a quick break or hours of fun.</p>
-                        </li>
-                         <li class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h3 class="font-semibold text-lg text-gray-800">Instant Play</h3>
-                            <p class="text-gray-600 mt-1">No downloads needed. Play instantly on any device with a web browser.</p>
-                        </li>
-                         <li class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h3 class="font-semibold text-lg text-gray-800">Clean, Responsive Design</h3>
-                            <p class="text-gray-600 mt-1">Enjoy a smooth, lag-free experience whether you're on a PC or your phone.</p>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <!-- 页脚 -->
-        <footer class="text-center mt-12 md:mt-16 pt-8 border-t border-gray-200">
-            <p class="text-sm text-gray-500">&copy; 2025 aicy.qzz.io. All Rights Reserved. Happy slithering!</p>
+        {responses.length > 0 && (
+          <div className="mt-6 bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">AI为你生成的回复:</h2>
+            <ul className="space-y-4">
+              {responses.map((res, index) => (
+                <li key={index} className="p-4 bg-gray-50 rounded-lg flex justify-between items-start group">
+                  <p className="text-gray-800 flex-1 pr-4">{res}</p>
+                  <button 
+                    onClick={() => copyToClipboard(res)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gray-200 hover:bg-[#07C160] hover:text-white text-gray-600 p-2 rounded-full"
+                    title="复制"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        
+        <footer className="text-center py-4 mt-4">
+            <p className="text-xs text-gray-400">
+                AI生成内容仅供娱乐，请谨慎使用。
+            </p>
         </footer>
 
+      </div>
     </div>
+  );
+};
 
-</body>
-</html>
+export default App;
