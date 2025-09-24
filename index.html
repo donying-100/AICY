@@ -1,840 +1,462 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>在线简历修改器</title>
-  <!-- 引入docx4js库用于生成Word文档 -->
-  <script src="https://cdn.jsdelivr.net/npm/docx4js@1.3.0/dist/docx4js.min.js"></script>
-  <!-- 引入html2pdf.js库用于生成PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
-  <style>
-    body {
-      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-      background: linear-gradient(135deg, #f0f4ff, #e0ecff);
-      margin: 0;
-      padding: 0;
-      color: #333;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书封面生成器 V2.5</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 html2canvas 库用于截图 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- 预连接 Google Fonts 以优化加载 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* 自定义样式 */
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            overscroll-behavior: none; /* 防止移动端下拉刷新页面 */
+        }
 
-    /* 页面标题样式 */
-    .page-title {
-      text-align: center;
-      padding: 40px 0 30px 0;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 244, 255, 0.9));
-      backdrop-filter: blur(20px);
-      margin-bottom: 30px;
-      border-bottom: 1px solid rgba(63, 81, 181, 0.1);
-      position: relative;
-      overflow: hidden;
-    }
+        /* 设置画布的宽高比为 3:4 */
+        #canvas {
+            aspect-ratio: 3 / 4;
+        }
 
-    .page-title::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-      animation: shimmer 3s infinite;
-    }
+        /* 可拖拽图片的样式 */
+        .image-container {
+            position: relative;
+            cursor: grab;
+        }
+        #image-preview {
+            position: absolute;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
 
-    @keyframes shimmer {
-      0% { left: -100%; }
-      100% { left: 100%; }
-    }
+        /* --- 模板通用与特定样式 --- */
 
-    .page-title h1 {
-      font-size: 36px;
-      font-weight: 800;
-      margin: 0 0 12px 0;
-      text-shadow: 0 4px 8px rgba(63, 81, 181, 0.2);
-      letter-spacing: 1px;
-      position: relative;
-      z-index: 1;
-    }
+        /* 模板A: 经典白底 */
+        #canvas.template-a { display: flex; flex-direction: column; }
+        .template-a .text-container { flex-basis: 45%; background-color: white; padding: 5%; display: flex; flex-direction: column; justify-content: center; }
+        .template-a .image-container { flex-basis: 55%; overflow: hidden; }
+        .template-a .description-text::before { content: ''; display: inline-block; width: 4px; height: 1em; background-color: #333; margin-right: 0.5rem; vertical-align: middle; }
+        .template-a .title-highlight { background: linear-gradient(to top, transparent 10%, #FFDE59 10%, #FFDE59 90%, transparent 90%); padding: 0 0.2em; }
 
-    .page-title h1 .icon {
-      font-size: 36px;
-      display: inline-block;
-      vertical-align: middle;
-    }
+        /* 模板B: 清新绿底 */
+        #canvas.template-b { display: flex; flex-direction: column; }
+        .template-b .text-container { order: 2; flex-basis: 45%; background-color: #f0fdf4; padding: 5%; display: flex; flex-direction: column; justify-content: center; }
+        .template-b .image-container { order: 1; flex-basis: 55%; overflow: hidden; }
+        .template-b .description-text::before { content: ''; display: inline-block; width: 4px; height: 1em; background-color: #16a34a; margin-right: 0.5rem; vertical-align: middle; }
 
-    .page-title h1 .title-text {
-      background: linear-gradient(135deg, #3f51b5, #5c6bc0, #7986cb);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      display: inline-block;
-      vertical-align: middle;
-    }
+        /* 模板C: 文字悬浮 */
+        #canvas.template-c { position: relative; }
+        .template-c .image-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .template-c .text-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; z-index: 2; padding: 5%; display: flex; flex-direction: column; justify-content: flex-end; background: linear-gradient(to top, rgba(0,0,0,0.7) 10%, transparent 60%); }
+        .template-c .text-container p, .template-c .text-container h1 { color: white; }
+        .template-c .description-text::before { background-color: white; }
 
-    .page-title p {
-      font-size: 18px;
-      color: #666;
-      margin: 0;
-      font-weight: 500;
-      opacity: 0.9;
-      position: relative;
-      z-index: 1;
-    }
-
-
-
-
-    .container {
-      max-width: 680px;
-      margin: 0 auto 50px auto;
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-      padding: 50px 60px;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 30px;
-    }
-
-    .avatar {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      overflow: hidden;
-      border: 4px solid #3f51b5;
-      position: relative;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-
-    .avatar:hover {
-      border-color: #5c6bc0;
-      transform: scale(1.05);
-    }
-
-    .avatar img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .avatar-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      color: white;
-      font-size: 12px;
-      text-align: center;
-    }
-
-    .avatar:hover .avatar-overlay {
-      opacity: 1;
-    }
-
-    #avatar-input {
-      display: none;
-    }
-
-    /* 导出PDF按钮样式 */
-    .export-section {
-      text-align: center;
-      margin: 30px auto 50px auto;
-      max-width: 680px;
-    }
-
-    .export-btn {
-      background: linear-gradient(135deg, #3f51b5, #5c6bc0);
-      color: white;
-      border: none;
-      padding: 12px 30px;
-      border-radius: 25px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(63, 81, 181, 0.3);
-      min-width: 150px;
-      margin: 0 10px; /* 添加按钮间距 */
-    }
-
-    .export-btn:hover {
-      background: linear-gradient(135deg, #5c6bc0, #7986cb);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(63, 81, 181, 0.4);
-    }
-
-    .export-btn:active {
-      transform: translateY(0);
-      box-shadow: 0 2px 10px rgba(63, 81, 181, 0.3);
-    }
-
-    .export-btn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    /* 作者信息样式 */
-    .author-info {
-      text-align: center;
-      margin: 20px auto 30px auto;
-      max-width: 680px;
-      padding: 15px 0;
-      border-top: 1px solid #e0ecff;
-    }
-
-    .author-info p {
-      margin: 0;
-      font-size: 14px;
-      color: #888;
-      font-weight: 400;
-    }
-
-    /* PDF导出时隐藏网页界面元素 */
-    @media print {
-      .export-section,
-      .page-title,
-      .add-btn,
-      .author-info {
-        display: none !important;
-      }
-    }
-
-    /* 右键菜单样式 */
-    .context-menu {
-      position: fixed;
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      padding: 4px 0;
-      z-index: 1000;
-      min-width: 100px;
-      display: none;
-    }
-
-    .context-menu-item {
-      padding: 8px 16px;
-      cursor: pointer;
-      font-size: 14px;
-      color: #333;
-      transition: background-color 0.2s;
-    }
-
-    .context-menu-item:hover {
-      background-color: #f5f5f5;
-    }
-
-    .context-menu-item.delete {
-      color: #f44336;
-    }
-
-    .context-menu-item.delete:hover {
-      background-color: #ffebee;
-    }
-
-
-
-    .title {
-      flex: 1;
-      margin-left: 30px;
-    }
-
-    .title h1, .title p {
-      margin: 0;
-    }
-
-    .title h1 {
-      font-size: 28px;
-      color: #3f51b5;
-    }
-
-    .title p {
-      margin-top: 8px;
-      font-size: 16px;
-      color: #666;
-    }
-
-    h2 {
-      color: #303f9f;
-      font-size: 20px;
-      font-weight: 600;
-      margin-top: 40px;
-      margin-bottom: 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .info {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      font-size: 15px;
-      margin-bottom: 30px;
-      color: #555;
-    }
-
-    .info div {
-      margin: 6px 0;
-    }
-
-    p, li {
-      line-height: 1.6;
-      cursor: pointer;
-    }
-
-
-
-    ul {
-      padding-left: 20px;
-    }
-
-    .editable{
-      margin: 0;
-    }
-
-    /* 各模块item间距 */
-    #project-list .project-item,
-    #work-list .work-item,
-    #education-list .education-item {
-      margin-bottom: 15px;
-    }
-
-    #project-list .project-item:last-child,
-    #work-list .work-item:last-child,
-    #education-list .education-item:last-child {
-      margin-bottom: 0;
-    }
-
-    .editable:focus {
-      outline: 2px dashed #3f51b5;
-      background: #eef2ff;
-    }
-
-    button.add-btn {
-      font-size: 14px;
-      background: #3f51b5;
-      color: white;
-      border: none;
-      padding: 4px 10px;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background 0.3s;
-      flex-shrink: 0;
-    }
-
-    button.add-btn:hover {
-      background: #5c6bc0;
-    }
-
-    @media (max-width: 600px) {
-      .page-title {
-        padding: 30px 20px 25px 20px;
-      }
-
-      .page-title h1 {
-        font-size: 28px;
-        letter-spacing: 0.5px;
-      }
-
-      .page-title p {
-        font-size: 16px;
-        padding: 0 10px;
-      }
-
-
-
-      .container {
-        padding: 30px 20px;
-      }
-
-      .header {
-        flex-direction: column;
-        align-items: center;
-      }
-
-      .title {
-        margin-left: 0;
-        text-align: center;
-        margin-top: 10px;
-      }
-
-      .info {
-        flex-direction: column;
-      }
-
-      /* 在小屏幕上调整导出按钮样式 */
-      .export-section {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-
-      .export-btn {
-        margin: 10px 0;
-        width: 80%;
-      }
-    }
-  </style>
+        /* 模板D: 深色数据 */
+        #canvas.template-d { display: flex; flex-direction: column; }
+        .template-d .text-container { order: 2; flex-basis: 50%; background-color: #1f2937; padding: 5%; display: flex; flex-direction: column; justify-content: center; }
+        .template-d .text-container p, .template-d .text-container h1 { color: white; }
+        .template-d .image-container { order: 1; flex-basis: 50%; overflow: hidden; }
+        .template-d .aux-text { color: #9ca3af; }
+        .template-d .description-text { color: #d1d5db; }
+    </style>
 </head>
-<body>
-  <!-- 页面标题 -->
-  <div class="page-title">
-    <h1><span class="icon">📋</span> <span class="title-text">在线简历</span></h1>
-    <p> 页面美观 • 操作简单 • 永久免费 </p>
-  </div>
+<body class="bg-gray-100">
 
-  <div class="container">
-    <div class="header">
-      <div class="avatar" onclick="changeAvatar()">
-        <img id="avatar-img" src="https://images.unsplash.com/photo-1603415526960-f7e0328c63b1?crop=faces&fit=crop&w=200&h=200" alt="头像">
-        <div class="avatar-overlay">
-          点击更换<br>头像
+    <div class="container mx-auto p-4 lg:p-8">
+        <div class="flex flex-col lg:flex-row lg:items-start gap-8">
+            
+            <!-- 控制面板 -->
+            <div class="w-full lg:w-1/3 bg-white p-4 rounded-2xl shadow-lg space-y-4 h-fit">
+                <h1 class="text-xl font-bold text-center text-gray-800 lg:hidden">小红书封面生成器</h1>
+                <!-- 1. 模板选择 -->
+                <div>
+                    <h2 class="text-lg font-bold mb-2 text-gray-700">1. 选择模板</h2>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button data-template="template-a" class="template-btn bg-blue-500 text-white rounded-md py-2 px-1 text-xs focus:outline-none font-semibold">经典白底</button>
+                        <button data-template="template-b" class="template-btn bg-gray-200 text-gray-700 rounded-md py-2 px-1 text-xs focus:outline-none font-semibold">清新绿底</button>
+                        <button data-template="template-c" class="template-btn bg-gray-200 text-gray-700 rounded-md py-2 px-1 text-xs focus:outline-none font-semibold">文字悬浮</button>
+                        <button data-template="template-d" class="template-btn bg-gray-200 text-gray-700 rounded-md py-2 px-1 text-xs focus:outline-none font-semibold">深色数据</button>
+                    </div>
+                </div>
+
+                <!-- 2. 内容编辑 -->
+                <div>
+                    <h2 class="text-lg font-bold mb-2 text-gray-700">2. 编辑内容</h2>
+                    <div class="space-y-3">
+                        <!-- 图片上传 -->
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">更换图片</label>
+                            <input type="file" id="image-upload" accept="image/*" class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        </div>
+                        
+                        <!-- 文本编辑模块 -->
+                        <div class="border-t pt-3">
+                             <p class="text-sm font-semibold text-gray-600 mb-1">引言/LOGO不要可删除</p>
+                             <input type="text" id="aux-text-input" value="引言/LOGO" class="w-full border-gray-300 rounded-md shadow-sm text-sm p-2">
+                             <div class="flex items-center gap-2 mt-2 flex-wrap">
+                                <label class="text-xs">字号:</label>
+                                <input type="number" id="aux-text-size" value="16" class="w-14 border-gray-300 rounded-md shadow-sm text-sm p-1">
+                                <label class="text-xs">颜色:</label>
+                                <input type="color" id="aux-text-color" value="#374151" class="w-8 h-7 border-none rounded-md p-0">
+                             </div>
+                        </div>
+
+                        <div class="border-t pt-3">
+                             <p class="text-sm font-semibold text-gray-600 mb-1">核心标题</p>
+                             <textarea id="title-text-input" rows="3" class="w-full border-gray-300 rounded-md shadow-sm text-sm p-2">定价心理学：5个心理触发因素+优化支付意愿的测试框架</textarea>
+                             <div class="flex items-center gap-2 mt-2 flex-wrap">
+                                <label class="text-xs">字号:</label>
+                                <input type="number" id="title-text-size" value="40" class="w-14 border-gray-300 rounded-md shadow-sm text-sm p-1">
+                                <label class="text-xs">颜色:</label>
+                                <input type="color" id="title-text-color" value="#111827" class="w-8 h-7 border-none rounded-md p-0">
+                             </div>
+                        </div>
+
+                        <div class="border-t pt-3">
+                             <p class="text-sm font-semibold text-gray-600 mb-1">说明文字</p>
+                             <textarea id="description-text-input" rows="2" class="w-full border-gray-300 rounded-md shadow-sm text-sm p-2">掌握5大心理触发，通过价值感知与紧迫感提升客单价67%，实战框架助你快速见效。</textarea>
+                             <div class="flex items-center gap-2 mt-2 flex-wrap">
+                                <label class="text-xs">字号:</label>
+                                <input type="number" id="description-text-size" value="18" class="w-14 border-gray-300 rounded-md shadow-sm text-sm p-1">
+                                <label class="text-xs">颜色:</label>
+                                <input type="color" id="description-text-color" value="#374151" class="w-8 h-7 border-none rounded-md p-0">
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. 背景样式 -->
+                <div id="background-controls-container">
+                    <h2 class="text-lg font-bold mb-2 text-gray-700">3. 背景样式</h2>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">背景风格</label>
+                            <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
+                                <button id="bg-style-solid" class="bg-style-btn bg-white shadow rounded-md py-1 px-2 text-xs font-semibold text-gray-700">纯色</button>
+                                <button id="bg-style-gradient" class="bg-style-btn py-1 px-2 text-xs font-semibold text-gray-500">渐变</button>
+                            </div>
+                        </div>
+                        <div id="solid-color-controls">
+                            <label class="text-xs font-medium text-gray-600">背景颜色</label>
+                            <div class="flex items-center gap-4 mt-1">
+                                <input type="color" id="text-bg-color" value="#ffffff" class="w-full h-8 border-none rounded-md">
+                            </div>
+                        </div>
+                        <div id="gradient-color-controls" class="hidden">
+                             <label class="text-xs font-medium text-gray-600">渐变颜色</label>
+                            <div class="flex items-center gap-2 mt-1">
+                                <input type="color" id="text-bg-gradient-start" value="#ffffff" class="w-1/2 h-8 border-none rounded-md">
+                                <input type="color" id="text-bg-gradient-end" value="#e5e7eb" class="w-1/2 h-8 border-none rounded-md">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. 下载 -->
+                <div>
+                     <h2 class="text-lg font-bold mb-2 text-gray-700">4. 生成与操作</h2>
+                     <div class="space-y-2">
+                        <button id="reset-btn" class="w-full bg-gray-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-gray-600 transition-colors duration-300 flex items-center justify-center gap-2 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                            复位所有设置
+                        </button>
+                        <button id="download-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center gap-2 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            下载封面 (PNG)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 预览画布 -->
+            <div class="w-full lg:w-2/3 flex items-center justify-center">
+                <div id="canvas-container" class="w-full max-w-lg">
+                    <div id="canvas" class="w-full bg-gray-200 shadow-2xl rounded-2xl overflow-hidden template-a">
+                        <!-- Canvas content will be dynamically generated here -->
+                        <div class="text-container">
+                           <p id="aux-text-preview" class="aux-text" style="font-size: 16px; color: #374151; margin-bottom: 1rem; font-family: 'Noto Sans SC', sans-serif;">引言/LOGO</p>
+                           <h1 id="title-text-preview" style="font-size: 40px; color: #111827; font-weight: 900; line-height: 1.3; font-family: 'Noto Sans SC', sans-serif;">
+                                <span class="title-highlight">定价心理学</span>：5个心理触发因素+优化支付意愿的测试框架
+                           </h1>
+                           <p id="description-text-preview" class="description-text" style="font-size: 18px; color: #374151; margin-top: 1rem; font-family: 'Noto Sans SC', sans-serif;">掌握5大心理触发，通过价值感知与紧迫感提升客单价67%，实战框架助你快速见效。</p>
+                        </div>
+                        <div class="image-container">
+                            <img id="image-preview" src="https://images.unsplash.com/photo-1543286386-7134a4a491a7?q=80&w=2070&auto=format&fit=crop" alt="预览图片">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-      <input type="file" id="avatar-input" accept="image/*" onchange="handleAvatarChange(event)">
-      <div class="title">
-        <h1 class="editable" contenteditable="true">雷小军</h1>
-        <p class="editable" contenteditable="true">前端工程师 | Vue / React / TypeScript / Node.js</p>
-      </div>
     </div>
 
-    <div class="info">
-      <div class="editable" contenteditable="true">🧍 男 | 38岁</div>
-      <div class="editable" contenteditable="true">📍 北京 | 20年经验</div>
-      <div class="editable" contenteditable="true">📞 13500001234</div>
-      <div class="editable" contenteditable="true">🎓 本科学历</div>
-    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- 获取所有需要的 DOM 元素 ---
+            const canvas = document.getElementById('canvas');
+            const templateButtons = document.querySelectorAll('.template-btn');
+            const imageUpload = document.getElementById('image-upload');
+            const imagePreview = document.getElementById('image-preview');
+            const downloadBtn = document.getElementById('download-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const bgControlsContainer = document.getElementById('background-controls-container');
+            const bgStyleSolidBtn = document.getElementById('bg-style-solid');
+            const bgStyleGradientBtn = document.getElementById('bg-style-gradient');
+            const solidColorControls = document.getElementById('solid-color-controls');
+            const gradientColorControls = document.getElementById('gradient-color-controls');
+            const textBgColorInput = document.getElementById('text-bg-color');
+            const textBgGradientStartInput = document.getElementById('text-bg-gradient-start');
+            const textBgGradientEndInput = document.getElementById('text-bg-gradient-end');
+            
+            // --- 文本元素映射 ---
+            const textElements = {
+                aux: {
+                    input: document.getElementById('aux-text-input'),
+                    size: document.getElementById('aux-text-size'),
+                    color: document.getElementById('aux-text-color'),
+                    preview: document.getElementById('aux-text-preview'),
+                },
+                title: {
+                    input: document.getElementById('title-text-input'),
+                    size: document.getElementById('title-text-size'),
+                    color: document.getElementById('title-text-color'),
+                    preview: document.getElementById('title-text-preview'),
+                },
+                description: {
+                    input: document.getElementById('description-text-input'),
+                    size: document.getElementById('description-text-size'),
+                    color: document.getElementById('description-text-color'),
+                    preview: document.getElementById('description-text-preview'),
+                }
+            };
 
-    <h2>
-      <span>教育背景</span>
-      <button class="add-btn" onclick="addEducation()"> 添加</button>
-    </h2>
-    <div id="education-list">
-      <div class="education-item">
-        <p class="editable" contenteditable="true">
-          <strong>上海交通大学</strong>｜计算机科学与技术 本科｜2014 - 2018
-        </p>
-      </div>
-    </div>
+            // --- 状态与变量 ---
+            let imageContainer;
+            let isDragging = false, startX, startY, initialLeft, initialTop;
+            let currentBgStyle = 'solid';
 
-    <h2>
-      <span>工作经历</span>
-      <button class="add-btn" onclick="addWork()"> 添加</button>
-    </h2>
-    <div id="work-list">
-      <div class="work-item">
-        <p class="editable" contenteditable="true">
-          <strong>字节跳动 | 高级前端工程师</strong> <span style="float:right;">2021.04 - 至今</span><br>
-          负责直播平台运营后台开发，优化组件性能、引入自动化测试，提升前端质量。
-        </p>
-      </div>
-      <div class="work-item">
-        <p class="editable" contenteditable="true">
-          <strong>网易云音乐 | 前端开发工程师</strong> <span style="float:right;">2018.07 - 2021.03</span><br>
-          参与多个核心页面重构及组件抽象，推动跨部门前端规范建设。
-        </p>
-      </div>
-    </div>
-
-    <h2>
-      <span>项目经验</span>
-      <button class="add-btn" onclick="addProject()"> 添加</button>
-    </h2>
-    <ul id="project-list">
-      <li class="project-item">
-        <div class="editable" contenteditable="true">
-          <strong>智能内容管理平台</strong>（Vue3 + Element Plus）<br>
-          支持多角色权限管理、可视化内容编辑器，实现动态组件渲染与数据绑定，服务上百万用户。
-        </div>
-      </li>
-      <li class="project-item">
-        <div class="editable" contenteditable="true">
-          <strong>跨境电商官网</strong>（React + Next.js）<br>
-          实现静态生成与服务端渲染结合，优化 SEO 与首屏性能，移动端适配流畅。
-        </div>
-      </li>
-      <li class="project-item">
-        <div class="editable" contenteditable="true">
-          <strong>H5 活动页组件平台</strong>（Vite + Vue）<br>
-          拖拽式配置系统 + 可复用组件库，支持多种主题模板与导出，节省 80% 页面开发时间。
-        </div>
-      </li>
-    </ul>
-
-    <h2>个人简介</h2>
-    <p class="editable" contenteditable="true">
-      具备丰富的前端开发经验，精通 Vue / React 等主流框架，擅长构建高性能组件和优雅 UI，参与多个大型项目开发。关注用户体验，热爱探索新技术，具备良好的团队沟通与协作能力。
-    </p>
-  </div>
-
-  <!-- 导出按钮 -->
-  <div class="export-section">
-    <button class="export-btn" onclick="exportToPDF()">📄 导出PDF</button>
-    <button class="export-btn" onclick="exportToWODE()">📝 导出WODE</button>
-    <button class="export-btn" onclick="clearSettings()">🗑️ 清除设置</button>
-  </div>
-
-  <!-- 作者信息 -->
-  <div class="author-info">
-    <p>© 2025 免费简历</p>
-  </div>
-
-  <!-- 右键菜单 -->
-  <div id="context-menu" class="context-menu">
-    <div class="context-menu-item delete" onclick="deleteCurrentItem()">删除</div>
-  </div>
-
-  <script>
-    // 支持按回车退出编辑状态
-    document.querySelectorAll('.editable').forEach(el => {
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          el.blur();
-        }
-      });
-    });
-
-    // 更换头像功能
-    function changeAvatar() {
-      document.getElementById('avatar-input').click();
-    }
-
-    function handleAvatarChange(event) {
-      const file = event.target.files[0];
-      if (file) {
-        // 检查文件类型
-        if (!file.type.startsWith('image/')) {
-          alert('请选择图片文件！');
-          return;
-        }
-
-        // 检查文件大小（限制为5MB）
-        if (file.size > 5 * 1024 * 1024) {
-          alert('图片文件不能超过5MB！');
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          document.getElementById('avatar-img').src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-
-    // 右键菜单相关变量
-    let currentItem = null;
-    const contextMenu = document.getElementById('context-menu');
-
-    // 为项目绑定右键菜单事件（通用函数）
-    function bindContextMenu(item) {
-      item.addEventListener('contextmenu', function(e) {
-        e.preventDefault();
-        currentItem = item;
-
-        // 显示右键菜单，使用clientX/clientY获取相对于视窗的坐标
-        contextMenu.style.display = 'block';
-        contextMenu.style.left = e.clientX + 'px';
-        contextMenu.style.top = e.clientY + 'px';
-      });
-    }
-
-    // 删除当前项目（通用删除函数）
-    function deleteCurrentItem() {
-      if (!currentItem) return;
-
-      let confirmMessage = '确定要删除这个项目吗？';
-      if (currentItem.classList.contains('work-item')) {
-        confirmMessage = '确定要删除这个工作经历吗？';
-      } else if (currentItem.classList.contains('education-item')) {
-        confirmMessage = '确定要删除这个教育背景吗？';
-      } else if (currentItem.classList.contains('project-item')) {
-        confirmMessage = '确定要删除这个项目经验吗？';
-      }
-
-      if (confirm(confirmMessage)) {
-        currentItem.remove();
-        hideContextMenu();
-      }
-    }
-
-    // 隐藏右键菜单
-    function hideContextMenu() {
-      contextMenu.style.display = 'none';
-      currentItem = null;
-    }
-
-    // 页面加载完成后初始化
-    document.addEventListener('DOMContentLoaded', function() {
-      // 为现有的所有项目绑定右键菜单
-      document.querySelectorAll('.work-item, .education-item, .project-item').forEach(bindContextMenu);
-
-      // 点击其他地方隐藏右键菜单
-      document.addEventListener('click', hideContextMenu);
-
-      // 阻止右键菜单的点击事件冒泡
-      contextMenu.addEventListener('click', function(e) {
-        e.stopPropagation();
-      });
-    });
-
-    // 添加项目经验
-    function addProject() {
-      const ul = document.getElementById('project-list');
-      const li = document.createElement('li');
-      li.className = 'project-item';
-
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'editable';
-      contentDiv.contentEditable = true;
-      contentDiv.innerHTML = '<strong>项目名称</strong>（技术栈）<br>项目描述...';
-
-      li.appendChild(contentDiv);
-      ul.appendChild(li);
-      contentDiv.focus();
-
-      contentDiv.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          contentDiv.blur();
-        }
-      });
-
-      // 为新添加的项目绑定右键菜单事件
-      bindContextMenu(li);
-    }
-
-    // 添加工作经历
-    function addWork() {
-      const div = document.getElementById('work-list');
-      const workItem = document.createElement('div');
-      workItem.className = 'work-item';
-
-      const p = document.createElement('p');
-      p.className = 'editable';
-      p.contentEditable = true;
-      p.innerHTML = '<strong>公司名称 | 职位</strong> <span style="float:right;">开始时间 - 结束时间</span><br>工作描述...';
-
-      workItem.appendChild(p);
-      div.appendChild(workItem);
-      p.focus();
-
-      p.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          p.blur();
-        }
-      });
-
-      // 为新添加的工作项目绑定右键菜单事件
-      bindContextMenu(workItem);
-    }
-
-    // 添加教育背景
-    function addEducation() {
-      const div = document.getElementById('education-list');
-      const educationItem = document.createElement('div');
-      educationItem.className = 'education-item';
-
-      const p = document.createElement('p');
-      p.className = 'editable';
-      p.contentEditable = true;
-      p.innerHTML = '<strong>学校名称</strong>｜专业 学历｜开始年份 - 结束年份';
-
-      educationItem.appendChild(p);
-      div.appendChild(educationItem);
-      p.focus();
-
-      p.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          p.blur();
-        }
-      });
-
-      // 为新添加的教育背景绑定右键菜单事件
-      bindContextMenu(educationItem);
-    }
-
-    // PDF导出功能
-    async function exportToPDF() {
-      try {
-        // 显示加载状态
-        const exportBtn = event.target;
-        const originalText = exportBtn.textContent;
-        exportBtn.textContent = '导出中...';
-        exportBtn.disabled = true;
-
-        // 获取简历内容
-        const container = document.querySelector('.container');
-        
-        // 使用html2pdf.js生成PDF
-        const options = {
-          margin: 10,
-          filename: '简历.pdf',
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        await html2pdf().set(options).from(container).save();
-        
-        console.log('PDF导出成功');
-      } catch (error) {
-        console.error('PDF导出失败:', error);
-        alert('PDF导出失败，请稍后重试');
-      } finally {
-        // 恢复按钮状态
-        const exportBtn = document.querySelector('.export-btn');
-        if (exportBtn) {
-          exportBtn.textContent = '📄 导出PDF';
-          exportBtn.disabled = false;
-        }
-      }
-    }
-
-    // 清除设置功能
-    function clearSettings() {
-      if (confirm('确定要清除所有设置并恢复到初始状态吗？')) {
-        // 重新加载页面以恢复初始状态
-        location.reload();
-      }
-    }
-
-    // 导出WODE功能
-    async function exportToWODE() {
-      try {
-        // 显示加载状态
-        const exportBtns = document.querySelectorAll('.export-btn');
-        exportBtns.forEach(btn => {
-          btn.textContent = '导出中...';
-          btn.disabled = true;
-        });
-
-        // 获取简历内容
-        const name = document.querySelector('.title h1').textContent || '简历';
-        const title = document.querySelector('.title p').textContent || '';
-        const infoItems = Array.from(document.querySelectorAll('.info .editable')).map(el => el.textContent);
-        const educationItems = Array.from(document.querySelectorAll('#education-list .education-item .editable')).map(el => el.textContent);
-        const workItems = Array.from(document.querySelectorAll('#work-list .work-item .editable')).map(el => el.textContent);
-        const projectItems = Array.from(document.querySelectorAll('#project-list .project-item .editable')).map(el => el.textContent);
-        const profile = document.querySelector('.container > p:last-child').textContent || '';
-
-        // 使用docx库创建Word文档
-        const { Document } = window.docx;
-        const { Paragraph } = window.docx;
-        const { TextRun } = window.docx;
-        const { HeadingLevel } = window.docx;
-        const { AlignmentType } = window.docx;
-
-        const doc = new Document({
-          sections: [{
-            properties: {},
-            children: [
-              new Paragraph({
-                text: name,
-                heading: HeadingLevel.HEADING_1,
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                text: title,
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({}),
-              ...infoItems.map(item => new Paragraph({
-                text: item,
-              })),
-              new Paragraph({}),
-              new Paragraph({
-                text: "教育背景",
-                heading: HeadingLevel.HEADING_2,
-              }),
-              ...educationItems.map(item => new Paragraph({
-                text: item,
-                indent: { left: 720 }, // 720 TWIP = 0.5 inch
-              })),
-              new Paragraph({}),
-              new Paragraph({
-                text: "工作经历",
-                heading: HeadingLevel.HEADING_2,
-              }),
-              ...workItems.map(item => new Paragraph({
-                text: item,
-                indent: { left: 720 },
-              })),
-              new Paragraph({}),
-              new Paragraph({
-                text: "项目经验",
-                heading: HeadingLevel.HEADING_2,
-              }),
-              ...projectItems.map(item => new Paragraph({
-                text: item,
-                indent: { left: 720 },
-              })),
-              new Paragraph({}),
-              new Paragraph({
-                text: "个人简介",
-                heading: HeadingLevel.HEADING_2,
-              }),
-              new Paragraph({
-                text: profile,
-                indent: { left: 720 },
-              }),
-            ],
-          }],
-        });
-
-        // 生成文档并下载
-        const { Packer } = window.docx;
-        const blob = await Packer.toBlob(doc);
-        
-        // 创建下载链接
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = '简历.docx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        console.log('WODE导出成功');
-      } catch (error) {
-        console.error('WODE导出失败:', error);
-        alert('WODE导出失败，请稍后重试');
-      } finally {
-        // 恢复按钮状态
-        const exportBtns = document.querySelectorAll('.export-btn');
-        exportBtns.forEach(btn => {
-          if (btn.textContent === '导出中...') {
-            if (btn.onclick && btn.onclick.toString().includes('exportToPDF')) {
-              btn.textContent = '📄 导出PDF';
-            } else if (btn.onclick && btn.onclick.toString().includes('exportToWODE')) {
-              btn.textContent = '📝 导出WODE';
-            } else {
-              btn.textContent = '🗑️ 清除设置';
+            const DEFAULTS = {
+                imageSrc: 'https://images.unsplash.com/photo-1543286386-7134a4a491a7?q=80&w=2070&auto=format&fit=crop',
+                auxText: '引言/LOGO', auxTextSize: 16, auxTextColor: '#374151',
+                titleText: '定价心理学：5个心理触发因素+优化支付意愿的测试框架', titleTextSize: 40, titleTextColor: '#111827',
+                descText: '掌握5大心理触发，通过价值感知与紧迫感提升客单价67%，实战框架助你快速见效。', descTextSize: 18, descTextColor: '#374151',
+                bgColor: '#ffffff', gradientStart: '#ffffff', gradientEnd: '#e5e7eb',
+            };
+            
+            // --- 核心功能函数 ---
+            function triggerEvent(element, eventName) {
+                element.dispatchEvent(new Event(eventName, { bubbles: true }));
             }
-            btn.disabled = false;
-          }
+            
+            // 更新文字背景
+            function updateTextContainerBackground() {
+                const textContainer = canvas.querySelector('.text-container');
+                if (!textContainer) return;
+                if (canvas.classList.contains('template-c')) {
+                    textContainer.style.background = ''; return;
+                }
+                if (currentBgStyle === 'solid') {
+                    textContainer.style.background = textBgColorInput.value;
+                } else {
+                    textContainer.style.background = `linear-gradient(135deg, ${textBgGradientStartInput.value}, ${textBgGradientEndInput.value})`;
+                }
+            }
+
+            // 调整图片尺寸与位置
+            function adjustAndPositionImage() {
+                imageContainer = imagePreview.parentElement;
+                const img = imagePreview, container = imageContainer;
+                const { offsetWidth: cW, offsetHeight: cH } = container;
+                const { naturalWidth: nW, naturalHeight: nH } = img;
+
+                if (!cW || !cH || !nW || !nH) { requestAnimationFrame(adjustAndPositionImage); return; }
+
+                const cRatio = cW / cH, iRatio = nW / nH;
+                let newWidth, newHeight;
+                if (iRatio > cRatio) { newHeight = cH; newWidth = newHeight * iRatio; } 
+                else { newWidth = cW; newHeight = newWidth / iRatio; }
+
+                img.style.width = `${newWidth}px`;
+                img.style.height = `${newHeight}px`;
+                img.style.left = `${(cW - newWidth) / 2}px`;
+                img.style.top = `${(cH - newHeight) / 2}px`;
+            }
+            
+            // --- 事件处理函数 ---
+            function onMouseDown(e) {
+                e.preventDefault(); isDragging = true;
+                imageContainer = imagePreview.parentElement;
+                imageContainer.style.cursor = 'grabbing';
+                startX = e.touches ? e.touches[0].clientX : e.clientX;
+                startY = e.touches ? e.touches[0].clientY : e.clientY;
+                initialLeft = imagePreview.offsetLeft;
+                initialTop = imagePreview.offsetTop;
+                window.addEventListener('mousemove', onMouseMove); window.addEventListener('mouseup', onMouseUp);
+                window.addEventListener('touchmove', onMouseMove); window.addEventListener('touchend', onMouseUp);
+            }
+            function onMouseMove(e) {
+                if (!isDragging) return;
+                const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+                const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                const dx = currentX - startX, dy = currentY - startY;
+                let newLeft = initialLeft + dx, newTop = initialTop + dy;
+                const { offsetWidth: cW, offsetHeight: cH } = imageContainer;
+                const { offsetWidth: iW, offsetHeight: iH } = imagePreview;
+                if (newLeft > 0) newLeft = 0; if (newTop > 0) newTop = 0;
+                if (newLeft < cW - iW) newLeft = cW - iW;
+                if (newTop < cH - iH) newTop = cH - iH;
+                imagePreview.style.left = `${newLeft}px`;
+                imagePreview.style.top = `${newTop}px`;
+            }
+            function onMouseUp() {
+                isDragging = false;
+                imageContainer.style.cursor = 'grab';
+                window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp);
+                window.removeEventListener('touchmove', onMouseMove); window.removeEventListener('touchend', onMouseUp);
+            }
+
+            // --- 事件绑定 ---
+            // 模板切换
+            templateButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const selectedTemplate = button.dataset.template;
+                    canvas.className = canvas.className.replace(/template-\w+/g, '');
+                    canvas.classList.add(selectedTemplate);
+                    templateButtons.forEach(btn => {
+                        btn.classList.remove('bg-blue-500', 'text-white');
+                        btn.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    button.classList.add('bg-blue-500', 'text-white');
+                    button.classList.remove('bg-gray-200', 'text-gray-700');
+                    bgControlsContainer.style.display = selectedTemplate === 'template-c' ? 'none' : 'block';
+                    
+                    if (selectedTemplate === 'template-c') {
+                        textElements.aux.color.value = '#FFFFFF';
+                        textElements.title.color.value = '#FFFFFF';
+                        textElements.description.color.value = '#FFFFFF';
+                    } else if (selectedTemplate === 'template-d') {
+                         textElements.aux.color.value = '#9ca3af';
+                         textElements.title.color.value = '#FFFFFF';
+                         textElements.description.color.value = '#d1d5db';
+                    } else {
+                        textElements.aux.color.value = DEFAULTS.auxTextColor;
+                        textElements.title.color.value = DEFAULTS.titleTextColor;
+                        textElements.description.color.value = DEFAULTS.descTextColor;
+                    }
+                    
+                    // Trigger color updates
+                    Object.values(textElements).forEach(el => {
+                        triggerEvent(el.color, 'input');
+                    });
+
+                    if (selectedTemplate === 'template-a') textBgColorInput.value = '#ffffff';
+                    if (selectedTemplate === 'template-b') textBgColorInput.value = '#f0fdf4';
+                    if (selectedTemplate === 'template-d') textBgColorInput.value = '#1f2937';
+                    
+                    updateTextContainerBackground();
+                    requestAnimationFrame(adjustAndPositionImage);
+                });
+            });
+
+            // 图片上传
+            imageUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => imagePreview.src = e.target.result;
+                    reader.readAsDataURL(file);
+                }
+            });
+            imagePreview.addEventListener('load', adjustAndPositionImage);
+            imagePreview.addEventListener('mousedown', onMouseDown);
+            imagePreview.addEventListener('touchstart', onMouseDown);
+
+            // 文本和样式更新
+            Object.values(textElements).forEach(el => {
+                el.input.addEventListener('input', () => {
+                    if (el === textElements.title) {
+                        const lines = el.input.value.split('：');
+                        el.preview.innerHTML = lines.length > 1 ? `<span class="title-highlight">${lines[0]}</span>：${lines.slice(1).join('：')}` : `<span class="title-highlight">${el.input.value}</span>`;
+                    } else {
+                        el.preview.textContent = el.input.value;
+                    }
+                });
+                el.size.addEventListener('input', () => el.preview.style.fontSize = `${el.size.value}px`);
+                el.color.addEventListener('input', () => el.preview.style.color = el.color.value);
+            });
+
+            // 背景样式更新
+            bgStyleSolidBtn.addEventListener('click', () => {
+                currentBgStyle = 'solid';
+                solidColorControls.classList.remove('hidden'); gradientColorControls.classList.add('hidden');
+                bgStyleSolidBtn.classList.add('bg-white', 'shadow'); bgStyleGradientBtn.classList.remove('bg-white', 'shadow');
+                updateTextContainerBackground();
+            });
+            bgStyleGradientBtn.addEventListener('click', () => {
+                currentBgStyle = 'gradient';
+                solidColorControls.classList.add('hidden'); gradientColorControls.classList.remove('hidden');
+                bgStyleGradientBtn.classList.add('bg-white', 'shadow'); bgStyleSolidBtn.classList.remove('bg-white', 'shadow');
+                updateTextContainerBackground();
+            });
+            [textBgColorInput, textBgGradientStartInput, textBgGradientEndInput].forEach(input => {
+                input.addEventListener('input', updateTextContainerBackground);
+            });
+            
+            // 下载功能
+            downloadBtn.addEventListener('click', () => {
+                // 确保元素在视口中以获得最佳截图效果
+                window.scrollTo(0, 0);
+
+                // 等待字体加载完成
+                document.fonts.ready.then(function () {
+                    html2canvas(canvas, { 
+                        scale: 1080 / canvas.offsetWidth, 
+                        useCORS: true, 
+                        logging: false,
+                        backgroundColor: null // 修复圆角问题
+                    })
+                        .then(generatedCanvas => {
+                            const link = document.createElement('a');
+                            link.download = `xiaohongshu_cover_${Date.now()}.png`;
+                            link.href = generatedCanvas.toDataURL('image/png');
+                            link.click();
+                        });
+                });
+            });
+
+            // 复位功能
+            resetBtn.addEventListener('click', () => {
+                textElements.aux.input.value = DEFAULTS.auxText;
+                textElements.title.input.value = DEFAULTS.titleText;
+                textElements.description.input.value = DEFAULTS.descText;
+                textElements.aux.size.value = DEFAULTS.auxTextSize; textElements.aux.color.value = DEFAULTS.auxTextColor;
+                textElements.title.size.value = DEFAULTS.titleTextSize; textElements.title.color.value = DEFAULTS.titleTextColor;
+                textElements.description.size.value = DEFAULTS.descTextSize; textElements.description.color.value = DEFAULTS.descTextColor;
+                
+                currentBgStyle = 'solid';
+                textBgColorInput.value = DEFAULTS.bgColor;
+                textBgGradientStartInput.value = DEFAULTS.gradientStart;
+                textBgGradientEndInput.value = DEFAULTS.gradientEnd;
+
+                Object.values(textElements).forEach(el => {
+                    triggerEvent(el.input, 'input'); triggerEvent(el.size, 'input');
+                    triggerEvent(el.color, 'input');
+                });
+                triggerEvent(bgStyleSolidBtn, 'click');
+
+                imagePreview.src = DEFAULTS.imageSrc;
+                triggerEvent(document.querySelector('.template-btn[data-template="template-a"]'), 'click');
+            });
+            
+            // --- 初始化 ---
+            updateTextContainerBackground();
         });
-      }
-    }
-  </script>
+    </script>
 </body>
 </html>
+
